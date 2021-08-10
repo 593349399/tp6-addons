@@ -39,5 +39,6 @@
         "post-install-cmd": [
             "php think package:config"
         ]
-    }
+    },
+    "license": "MIT"
 }
