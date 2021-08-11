@@ -9,7 +9,6 @@ declare(strict_types=1);
 namespace GdPeter\Tp6Addons;
 
 use think\App;
-use think\facade\Config;
 
 /**
  * 插件基类

@@ -8,8 +8,13 @@ declare (strict_types=1);
 
 namespace GdPeter\Tp6Addons;
 
+use GdPeter\Tp6Addons\command\SendConfig;
+use GdPeter\Tp6Addons\exception\PackageException;
+use GdPeter\Tp6Addons\provider\Update;
 use myttyy\FilesFinder;
+
 use think\App;
+use think\exception\ClassNotFoundException;
 use think\facade\Cache;
 use think\facade\Config;
 use think\facade\Event;
@@ -22,30 +27,50 @@ use think\Service as BaseService;
  */
 class Service extends BaseService
 {
-    // 配置
-    protected $config = [
+    // 默认配置
+    protected $defaultConfig = [
         'debug' => false,
         'path' => [],
-        'config_pre' => 'Tp6Addons:'
+        'config_pre' => 'Tp6Addons:',
+        'provider' => [
+        ]
     ];
 
-    protected $package = []; //所有包
+    //注入服务
+    protected $defaultProvider = [
+        'update'=>Update::class
+    ];
 
     public function __construct(App $app)
     {
         $this->app = $app;
-        $this->config = array_merge($this->config,Config::get('package'));
+        $config = array_merge($this->defaultConfig,Config::get('package'));
+        $config['provider'] = array_merge($this->defaultProvider,$config['provider']);
+        Config::set($config,'package');
     }
 
     public function register()
     {
-        $this->app->bind('package',$this); //包管理实例注入
+        $this->app->bind('package',$this);
     }
 
     public function boot()
     {
+        $provider = Config::get('package.provider',[]);
+        foreach ($provider as $k => $v){
+            if(!class_exists($v)){
+                throw new ClassNotFoundException($v . '类不存在',$v);
+            }
+            if(method_exists($v,'init')){
+                $v::init();
+            }
+            $this->app->bind('package:'.$k,$v);
+        }
         $this->loadEvent();
         $this->loadCommand();
+        $this->commands([
+            'package:config' => SendConfig::class
+        ]);
     }
 
     //获取本地包列表
@@ -57,11 +82,12 @@ class Service extends BaseService
         $cache = $this->isDebug() ? []: Cache::get($cacheName,[]);
 
         if(empty($cache)){
-            foreach ($this->config['path'] as $k => $v){
+            $path = Config::get('package.path');
+            foreach ($path as $k => $v){
                 foreach ($v as $dir){
                     $package = FilesFinder::maxDepth($k)->select(["package.xml"],$rootPath . $dir)->toArray();
                     foreach ($package as $v){
-                        $content = $this->read_xml($v['path']);
+                        $content = read_xml($v['path']);
                         if($content && !empty($content['application']['identifie']) && !empty($content['application']['version'])){
                             $idx = $content['application']['identifie'];
                             $cache[$idx] = [
@@ -151,53 +177,25 @@ class Service extends BaseService
         }
     }
 
-    /**
-     * 读取文件内容
-     * @param $filename  文件名
-     * @return string 文件内容
-     */
-    private function read_file($filename)
-    {
-        $content = '';
-        if (function_exists('file_get_contents')) {
-            @$content = file_get_contents($filename);
-        } else {
-            if (@$fp = fopen($filename, 'r')) {
-                @$content = fread($fp, filesize($filename));
-                @fclose($fp);
-            }
-        }
-        return $content;
-    }
-
-    /**
-     * 读取xml
-     * @param $str
-     * @return false|mixed
-     */
-    private function read_xml($filename)
-    {
-        $content = $this->read_file($filename);
-        if(!$content){
-            return false;
-        }
-        $xml_parser = xml_parser_create();
-        if (!xml_parse($xml_parser, $content, true)) {
-            xml_parser_free($xml_parser);
-            return false;
-        } else {
-            return json_decode(json_encode(simplexml_load_string($content, 'SimpleXMLElement', LIBXML_NOCDATA)), true);
-        }
-    }
-
-
     private function getCacheName($name)
     {
-        return $this->config['config_pre'] . $name;
+        return Config::get('package.config_pre') . $name;
     }
 
     private function isDebug()
     {
-        return $this->config['debug'];
+        return Config::get('package.debug');
+    }
+
+    //获取容器实例
+    public function get(string $name = '', array $args = [], bool $newInstance = false)
+    {
+        $provider = Config::get('package.provider',[]);
+
+        if(isset($provider[$name])){
+            return app('package:'.$name, $args, $newInstance);
+        }
+
+        throw new PackageException('没有找到容器'.$name);
     }
 }
