@@ -1,6 +1,5 @@
 <?php
 /**
- * 著作权归深圳市桔子互联信息技术有限公司所有
  * user: peter
  * Date：2021/8/11
  * Time: 9:11
@@ -57,6 +56,7 @@ class Update
         if(!in_array($action,['install','upgrade','uninstall'])){
             throw new PackageException('包安装命令action参数错误');
         }
+        $this->package->deleteCache(); //删除缓存获取最新的包数据
         $package = $this->package->getPackage($identifie);
         if(!$package){
             throw new PackageException('安装包配置错误或不存在',compact('identifie','version','action'));
@@ -96,7 +96,6 @@ class Update
         if($action == 'install'){
             file_put_contents($installLockPath,'包安装锁');
         }
-
         if(isset($package['install']) && is_string($package['install'])){
             File::delFile($package['rootPath'] . $package['install']);
         }

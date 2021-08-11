@@ -61,10 +61,10 @@ class Service extends BaseService
             if(!class_exists($v)){
                 throw new ClassNotFoundException($v . '类不存在',$v);
             }
+            $this->app->bind('package:'.$k,$v);
             if(method_exists($v,'init')){
                 $v::init();
             }
-            $this->app->bind('package:'.$k,$v);
         }
         $this->loadEvent();
         $this->loadCommand();
