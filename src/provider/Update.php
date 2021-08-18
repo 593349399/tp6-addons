@@ -10,6 +10,7 @@ namespace GdPeter\Tp6Addons\provider;
 use GdPeter\Tp6Addons\exception\PackageException;
 use GdPeter\Tp6Addons\exception\PackageSqlBurstException;
 use GdPeter\Tp6Addons\exception\UpdateException;
+use myttyy\Directory;
 use myttyy\File;
 use think\App;
 use think\facade\Config;
@@ -62,7 +63,7 @@ class Update
 
         //todo:2.使用文件锁对当前包操作锁定
 
-        //限制不能重复安装
+        //限制不能重复执行
         if($action == 'install' && is_file($package['rootPath'] . 'install.lock')){
             throw new PackageException('已经安装，请勿重复安装',$package);
         }
@@ -154,6 +155,9 @@ class Update
      */
     public function runSql($content = '')
     {
+        $runtimePath = app()->getRuntimePath() . "install_sql_tmp/";
+        Directory::create($runtimePath);
+
         // 被替换的前缀
         $from = Config::get('package.database_from_pre');
         // 要替换的前缀
@@ -161,8 +165,8 @@ class Update
 
         if ($content != '') {
             $md5 = md5($content);
-            $sql_file = "./{$md5}.json";
-            $log_file = "./{$md5}.log";
+            $sql_file = $runtimePath . $md5 . ".json";
+            $log_file = $runtimePath . $md5 . ".log";
             if($pure_sql = read_file($sql_file)){
                 $pure_sql = json_decode($pure_sql,true);
             }else{
