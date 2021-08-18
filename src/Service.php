@@ -8,6 +8,7 @@ declare (strict_types=1);
 
 namespace GdPeter\Tp6Addons;
 
+use GdPeter\Tp6Addons\command\Provider;
 use GdPeter\Tp6Addons\command\SendConfig;
 use GdPeter\Tp6Addons\exception\PackageException;
 use GdPeter\Tp6Addons\provider\Update;
@@ -44,6 +45,12 @@ class Service extends BaseService
     public function __construct(App $app)
     {
         $this->app = $app;
+        $this->initialize();
+    }
+
+    private function initialize()
+    {
+        //初始化包配置
         $config = array_merge($this->defaultConfig,Config::get('package'));
         $config['provider'] = array_merge($this->defaultProvider,$config['provider']);
         Config::set($config,'package');
@@ -69,7 +76,7 @@ class Service extends BaseService
         $this->loadEvent();
         $this->loadCommand();
         $this->commands([
-            'package:config' => SendConfig::class
+            'package:config' => SendConfig::class, //配置
         ]);
     }
 
@@ -93,8 +100,8 @@ class Service extends BaseService
                             $cache[$idx] = [
                                 'identifie'=>$idx,
                                 'version'=>$content['application']['version'],
-                                'path'=>$v['path'],
-                                'rootPath'=>$v['dirname'],
+                                'path'=>$v['path'] . '/',
+                                'rootPath'=>$v['dirname'] . '/',
                                 'package'=>$content,
                             ];
                         }else{

@@ -13,6 +13,7 @@ use GdPeter\Tp6Addons\exception\UpdateException;
 use myttyy\File;
 use think\App;
 use think\facade\Config;
+use think\facade\Event;
 
 /**
  * 包安装脚本管理
@@ -23,7 +24,6 @@ class Update
 {
     private $app;
     private $package;
-    private $callback = [];
 
     private $sqlBurst = false; //数据库分段执行
 
@@ -39,71 +39,69 @@ class Update
         $this->sqlBurst = $sqlBurst;
         return $this;
     }
+
     public function getSqlBurst()
     {
         return $this->sqlBurst;
     }
 
-    //设置安装回调
-    public function setCallback(\Closure $callback)
-    {
-        $this->callback[] = $callback;
-    }
-
     //执行指定版本包安装更新卸载操作
     public function run($identifie,$version,$action)
     {
+        //1.基本验证
         if(!in_array($action,['install','upgrade','uninstall'])){
             throw new PackageException('包安装命令action参数错误');
         }
-        $this->package->deleteCache(); //删除缓存获取最新的包数据
         $package = $this->package->getPackage($identifie);
         if(!$package){
             throw new PackageException('安装包配置错误或不存在',compact('identifie','version','action'));
         }
-
         if($package['version'] != $version){
             throw new PackageException('更新版本和本地版本不一致，清除缓存后重试',$package);
         }
 
-        //防止安装重复执行
-        if($action == 'install'){
-            $installLockPath = $package['rootPath'] . '/install.lock';
-            if(is_file($installLockPath)){
-                throw new PackageException('已经安装，请勿重复安装',$package);
-            }
+        //todo:2.使用文件锁对当前包操作锁定
+
+        //限制不能重复安装
+        if($action == 'install' && is_file($package['rootPath'] . 'install.lock')){
+            throw new PackageException('已经安装，请勿重复安装',$package);
         }
 
+        //执行指定版本操作
+        $this->runUpdate($package,$action);
+    }
+
+    //执行更新请求
+    public function runUpdate($package,$action)
+    {
         //不限制内存
         ini_set('memory_limit','51200M');
         //不限制时间
         set_time_limit(0);
 
-        //执行相应操作
-        $this->parseSql($package[$action] ?? '',$package['rootPath']);
+        $file['install'] = !empty($package['package']['install']) ? (is_array($package['package']['install']) ? $package['package']['install'] : [$package['package']['install']]) : [];
+        $file['upgrade'] = !empty($package['package']['upgrade']) ? (is_array($package['package']['upgrade']) ? $package['package']['upgrade'] : [$package['package']['upgrade']]) : [];
+        $file['uninstall'] = !empty($package['package']['uninstall']) ? (is_array($package['package']['uninstall']) ? $package['package']['uninstall'] : [$package['package']['uninstall']]) : [];
 
-        foreach ($this->callback as $v){
-            try {
-                call_user_func($v,$package,$action);
-            }catch (UpdateException $e){
-                //断点的异常
-                if($e->getLevel() == UpdateException::LEVEL_DIE){
-                    throw $e;
-                }
-            }
+        $dofile = $file[$action] ?: [];
+
+        foreach ($dofile as $v){
+            $this->parseSql($v,$package['rootPath']);
         }
 
+        //执行成功埋点
+        Event::trigger('AfterPackageRun',compact('package','action'));
+
+        $allfile = array_merge($file['install'],$file['upgrade'],$file['uninstall']);
+
+        //删除文件
+        foreach ($allfile as $v){
+            File::delFile($package['rootPath'] . $v);
+        }
+
+        //成功锁定安装
         if($action == 'install'){
-            file_put_contents($installLockPath,'包安装锁');
-        }
-        if(isset($package['install']) && is_string($package['install'])){
-            File::delFile($package['rootPath'] . $package['install']);
-        }
-        if(isset($package['upgrade']) && is_string($package['upgrade'])){
-            File::delFile($package['rootPath'] . $package['upgrade']);
-        }
-        if(isset($package['uninstall']) && is_string($package['uninstall'])){
-            File::delFile($package['rootPath'] . $package['uninstall']);
+            file_put_contents($package['rootPath'] . 'install.lock','包安装锁');
         }
     }
 
