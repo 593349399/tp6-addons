@@ -60,21 +60,6 @@ class Update
         if($package['version'] != $version){
             throw new PackageException('更新版本和本地版本不一致，清除缓存后重试',$package);
         }
-
-        //todo:2.使用文件锁对当前包操作锁定
-
-        //限制不能重复执行
-        if($action == 'install' && is_file($package['rootPath'] . 'install.lock')){
-            throw new PackageException('已经安装，请勿重复安装',$package);
-        }
-
-        //执行指定版本操作
-        $this->runUpdate($package,$action);
-    }
-
-    //执行更新请求
-    public function runUpdate($package,$action)
-    {
         //不限制内存
         ini_set('memory_limit','51200M');
         //不限制时间
@@ -98,11 +83,6 @@ class Update
         //删除文件
         foreach ($allfile as $v){
             File::delFile($package['rootPath'] . $v);
-        }
-
-        //成功锁定安装
-        if($action == 'install'){
-            file_put_contents($package['rootPath'] . 'install.lock','包安装锁');
         }
     }
 

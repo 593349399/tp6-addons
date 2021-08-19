@@ -8,7 +8,6 @@ declare (strict_types=1);
 
 namespace GdPeter\Tp6Addons;
 
-use GdPeter\Tp6Addons\command\Provider;
 use GdPeter\Tp6Addons\command\SendConfig;
 use GdPeter\Tp6Addons\exception\PackageException;
 use GdPeter\Tp6Addons\provider\Update;
@@ -39,7 +38,7 @@ class Service extends BaseService
 
     //注入服务
     protected $defaultProvider = [
-        'update'=>Update::class
+        'update'=>Update::class,
     ];
 
     public function __construct(App $app)
@@ -100,8 +99,8 @@ class Service extends BaseService
                             $cache[$idx] = [
                                 'identifie'=>$idx,
                                 'version'=>$content['application']['version'],
-                                'path'=>$v['path'] . '/',
-                                'rootPath'=>$v['dirname'] . '/',
+                                'path'=>$v['path'],
+                                'rootPath'=>$v['dirname'],
                                 'package'=>$content,
                             ];
                         }else{
@@ -123,6 +122,7 @@ class Service extends BaseService
         Cache::delete($this->getCacheName('package'));
         Cache::delete($this->getCacheName('hook'));
         Cache::delete($this->getCacheName('command'));
+        return $this;
     }
 
     //加载全局命令
