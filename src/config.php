@@ -2,16 +2,21 @@
 
 return [
     //包配置
-    'path'=>[
-        0=>[
-            ''
+    'type'=>[
+        'system'=>[
+            'dep'=>0,
+            'path'=>app()->getRootPath()
         ],
-        1=>[
-            'app',
-            'public\home',
+        'addons'=>[
+            'dep'=>1,
+            'path'=>app()->getRootPath() . 'app/'
+        ],
+        'channel'=>[
+            'dep'=>1,
+            'path'=>app()->getRootPath() . 'public/home/'
         ]
     ],
-    'debug'=>true,
+    'debug'=>false,
 
     //执行sql替换使用的前缀
     'database_from_pre'=>'jz_',

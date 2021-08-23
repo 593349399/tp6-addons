@@ -30,7 +30,7 @@ class Service extends BaseService
     // 默认配置
     protected $defaultConfig = [
         'debug' => false,
-        'path' => [],
+        'type' => [],
         'config_pre' => 'Tp6Addons:',
         'provider' => [
         ]
@@ -64,7 +64,7 @@ class Service extends BaseService
     {
         $provider = Config::get('package.provider',[]);
         foreach ($provider as $k => $v){
-            if(!class_exists($v)){
+            if(!is_object($v) && !class_exists($v)){
                 throw new ClassNotFoundException($v . '类不存在',$v);
             }
             $this->app->bind('package:'.$k,$v);
@@ -79,33 +79,29 @@ class Service extends BaseService
         ]);
     }
 
-    //获取本地包列表
+    //获取本地包已安装列表数据
     public function getPackage($key = '*')
     {
-        $rootPath = $this->app->getRootPath();
-
         $cacheName = $this->getCacheName('package');
         $cache = $this->isDebug() ? []: Cache::get($cacheName,[]);
 
         if(empty($cache)){
-            $path = Config::get('package.path');
-            foreach ($path as $k => $v){
-                foreach ($v as $dir){
-                    $package = FilesFinder::maxDepth($k)->select(["package.xml"],$rootPath . $dir)->toArray();
-                    foreach ($package as $v){
-                        $content = read_xml($v['path']);
-                        if($content && !empty($content['application']['identifie']) && !empty($content['application']['version'])){
-                            $idx = $content['application']['identifie'];
-                            $cache[$idx] = [
-                                'identifie'=>$idx,
-                                'version'=>$content['application']['version'],
-                                'path'=>$v['path'],
-                                'rootPath'=>$v['dirname'],
-                                'package'=>$content,
-                            ];
-                        }else{
-                            trace('非法包：'.$v['path'],'alert');
-                        }
+            $type = Config::get('package.type');
+            foreach ($type as $v){
+                $package = FilesFinder::maxDepth($v['dep'])->select(["package.xml"],$v['path'])->toArray();
+                foreach ($package as $p){
+                    $content = read_xml($p['path']);
+                    if($content && !empty($content['application']['identifie']) && !empty($content['application']['version'])){
+                        $idx = $content['application']['identifie'];
+                        $cache[$idx] = [
+                            'identifie'=>$idx,
+                            'version'=>$content['application']['version'],
+                            'path'=>$p['path'],
+                            'rootPath'=>$p['dirname'],
+                            'package'=>$content,
+                        ];
+                    }else{
+                        trace('非法包：'.$v['path'],'package');
                     }
                 }
             }
@@ -200,7 +196,7 @@ class Service extends BaseService
         $provider = Config::get('package.provider',[]);
 
         if(isset($provider[$name])){
-            return app('package:'.$name, $args, $newInstance);
+            return $this->app->make('package:'.$name, $args, $newInstance);
         }
 
         throw new PackageException('没有找到容器'.$name);

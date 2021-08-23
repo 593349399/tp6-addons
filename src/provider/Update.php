@@ -10,6 +10,7 @@ namespace GdPeter\Tp6Addons\provider;
 use GdPeter\Tp6Addons\exception\PackageException;
 use GdPeter\Tp6Addons\exception\PackageSqlBurstException;
 use GdPeter\Tp6Addons\exception\UpdateException;
+use GdPeter\Tp6Addons\library\DownloadTool;
 use myttyy\Directory;
 use myttyy\File;
 use think\App;
@@ -255,6 +256,109 @@ class Update
                 @unlink($log_file);
                 @unlink($sql_file);
             }
+        }
+    }
+
+    /**
+     * 整包安装或更新操作，支持断点续传，支持文件完整校验，支持分包下载，支持备份还原
+     * @param $identifie
+     * @param $url
+     * @param false $md5
+     * @param float|int $burst
+     */
+    public function installFullPackage($identifie,$version,$url,$md5 = false,$burst = 4048*1024)
+    {
+        //读取本地是否有此安装包
+        $package = $this->package->getPackage($identifie);
+
+        //错误日志记录数据
+        $log = compact('identifie','version','url','md5','burst','package');
+
+        //有本地包表示更新请求
+        if($package && $package['version'] == $version){
+            throw new PackageException('已经更新至'.$version.'版本，请勿重复操作！',$log);
+        }
+
+        $zipRuntimePath = $this->app->getRuntimePath() . 'package_zip/'; //zip包根目录
+        $unzipRuntimePath = $this->app->getRuntimePath() . "package_unzip/{$identifie}/"; //解压根目录
+        $bfRuntimePath = $this->app->getRuntimePath() . "package_bf/{$identifie}/"; //备份zip包根目录
+        Directory::create($zipRuntimePath); //创建目录
+        Directory::create($unzipRuntimePath); //创建目录
+        Directory::create($bfRuntimePath); //创建目录
+
+
+        $zipFile = $zipRuntimePath . $identifie . '.zip'; //临时安装zip名称
+        //没有文件或者有文件需要校验
+        if(!is_file($zipFile) || ($md5 && md5_file($zipFile) != $md5)){
+            //下载文件
+            (new DownloadTool())->setUrl($url)->setBurst($burst)->saveFile($zipFile);
+        }
+
+        try {
+            if($md5 && md5_file($zipFile) != $md5){
+                throw new PackageException("安装包下载不完整请重试",$log);
+            }
+
+            if(!$this->unzip($zipFile,$unzipRuntimePath)){
+                throw new PackageException("安装包解压失败请重试",$log);
+            }
+
+            //读取包xml
+            $xml = read_xml($unzipRuntimePath . 'package.xml');
+            if($xml && !empty($xml['application']['identifie']) && !empty($xml['application']['version'])){
+                if($xml['application']['identifie'] != $identifie){
+                    throw new PackageException("远程包identifie配置错误",$log);
+                }
+                if($xml['application']['version'] != $version){
+                    throw new PackageException("远程包version配置错误",$log);
+                }
+            }else{
+                throw new PackageException("远程包配置错误,不存在identifie和version",$log);
+            }
+        }catch (\Throwable $e){
+            File::delFile($zipFile); //删除zip包重新下载
+            Directory::del($unzipRuntimePath); //删除解压目录数据
+            throw $e;
+        }
+
+        //所有都没错，执行替换文件
+        if($package){
+            $action = 'upgrade';
+            $movePath = $package['rootPath'];
+        }else{
+            $action = 'install';
+            $type = Config::get('package.type');
+            if(empty($xml['application']['type']) || !isset($type[$xml['application']['type']])){
+                throw new PackageException("远程包type或本地package.type配置错误",$log);
+            }
+            if($type[$xml['application']['type']]['dep'] == 0){
+                $movePath = $type[$xml['application']['type']]['path'];
+            }else{
+                $movePath = $type[$xml['application']['type']]['path'] . "{$identifie}/";
+            }
+        }
+
+        //todo:备份原文件
+        
+
+        Directory::copy($unzipRuntimePath,$movePath);
+        File::delFile($zipFile); //删除zip包
+        Directory::del($unzipRuntimePath); //删除解压目录数据
+        $this->package->deleteCache(); //清楚缓存执行安装请求
+        $this->run($identifie,$version,$action); //执行安装请求
+    }
+
+    // zip包解压
+    private function unzip($filePath,$fileTo)
+    {
+        $zip = new \ZipArchive();
+
+        if ($zip->open($filePath) === true) {
+            $zip->extractTo($fileTo);
+            $zip->close();
+            return true;
+        } else {
+            return false;
         }
     }
 }

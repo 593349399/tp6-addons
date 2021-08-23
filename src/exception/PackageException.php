@@ -16,6 +16,9 @@ class PackageException extends Exception
     public function __construct($msg,$data = [])
     {
         $this->message = $msg;
-        $this->setData('package',$data);
+        if($data){
+            trace($data,'package');
+            $this->setData('package',$data);
+        }
     }
 }

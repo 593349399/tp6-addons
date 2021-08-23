@@ -28,7 +28,6 @@ function read_file($filename)
 }
 
 
-
 if(!function_exists('read_xml')){
 /**
  * 读取xml
