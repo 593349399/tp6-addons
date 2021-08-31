@@ -28,7 +28,6 @@ use think\Service as BaseService;
 class Service extends BaseService
 {
     protected $app;
-    protected $config;
 
     // 默认配置
     protected $defaultConfig = [
@@ -46,48 +45,48 @@ class Service extends BaseService
         ]
     ];
 
-    public function __construct(App $app,Config $config)
+    public function __construct(App $app)
     {
-        $this->app = $app;
-        $this->config = $config;
-        $this->initialize();
+//        $this->app = $app;
+//        $this->config = $config;
+//        $this->initialize();
     }
 
     private function initialize()
     {
-        $default = $this->defaultConfig;
-        $config = $this->config->get('package');
-
-
-
-        //初始化包配置
-        $config = array_merge($this->defaultConfig,Config::get('package'));
-        $config['provider'] = array_merge($this->defaultProvider,$config['provider']);
-        Config::set($config,'package');
+//        $default = $this->defaultConfig;
+//        $config = $this->config->get('package');
+//
+//
+//
+//        //初始化包配置
+//        $config = array_merge($this->defaultConfig,Config::get('package'));
+//        $config['provider'] = array_merge($this->defaultProvider,$config['provider']);
+//        Config::set($config,'package');
     }
 
     public function register()
     {
-        $this->app->bind('package',$this);
+//        $this->app->bind('package',$this);
     }
 
     public function boot()
     {
-        $provider = Config::get('package.provider',[]);
-        foreach ($provider as $k => $v){
-            if(!is_object($v) && !class_exists($v)){
-                throw new ClassNotFoundException($v . '类不存在',$v);
-            }
-            $this->app->bind('package:'.$k,$v);
-            if(method_exists($v,'init')){
-                $v::init();
-            }
-        }
-        $this->loadEvent();
-        $this->loadCommand();
-        $this->commands([
-            'package:config' => SendConfig::class, //配置
-        ]);
+//        $provider = Config::get('package.provider',[]);
+//        foreach ($provider as $k => $v){
+//            if(!is_object($v) && !class_exists($v)){
+//                throw new ClassNotFoundException($v . '类不存在',$v);
+//            }
+//            $this->app->bind('package:'.$k,$v);
+//            if(method_exists($v,'init')){
+//                $v::init();
+//            }
+//        }
+//        $this->loadEvent();
+//        $this->loadCommand();
+//        $this->commands([
+//            'package:config' => SendConfig::class, //配置
+//        ]);
     }
 
     //获取本地包已安装列表数据
