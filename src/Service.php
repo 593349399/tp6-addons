@@ -27,28 +27,39 @@ use think\Service as BaseService;
  */
 class Service extends BaseService
 {
+    protected $app;
+    protected $config;
+
     // 默认配置
     protected $defaultConfig = [
-        'debug' => false,
         'type' => [],
         'config_pre' => 'Tp6Addons:',
-        'provider' => [
+
+        //数据表
+        'dbs'=>[
+            'package'=>'package', //包
+            'package_hooks'=>'package_hooks', //埋点
+            'package_commands'=>'package_commands', //命令
+            'package_tasks'=>'package_tasks', //定时任务
+            'package_tasks_log'=>'package_tasks_log', //定时任务日志
+            'package_commands_log'=>'package_commands_log', //命令日志
         ]
     ];
 
-    //注入服务
-    protected $defaultProvider = [
-        'update'=>Update::class,
-    ];
-
-    public function __construct(App $app)
+    public function __construct(App $app,Config $config)
     {
         $this->app = $app;
+        $this->config = $config;
         $this->initialize();
     }
 
     private function initialize()
     {
+        $default = $this->defaultConfig;
+        $config = $this->config->get('package');
+
+
+
         //初始化包配置
         $config = array_merge($this->defaultConfig,Config::get('package'));
         $config['provider'] = array_merge($this->defaultProvider,$config['provider']);
