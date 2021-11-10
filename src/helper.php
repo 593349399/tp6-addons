@@ -51,6 +51,69 @@ function read_xml($filename)
 
 }
 
+if(!function_exists('get_cache_name')){
+    /**
+     * 读取经过拼接的统一的缓存前缀名称
+     * @param $name
+     */
+    function get_cache_name($name)
+    {
+        return \think\facade\Config::get('package.cache_pre') . $name;
+    }
+}
+
+if(!function_exists('is_serialized')){
+    /**
+     * 是否序列化
+     * @param $str
+     * @return bool
+     */
+    function is_serialized($str){
+        if (!is_string($str)) {
+            return false;
+        }
+        $str = trim($str);
+
+        if ('N;' == $str)
+
+            return true;
+
+        if (!preg_match('/^([adObis]):/', $str, $badions))
+
+            return false;
+
+        switch ($badions[1]) {
+
+            case'a':
+
+            case'O':
+
+            case's':
+
+                if (preg_match("/^{$badions[1]}:[0-9]+:.*[;}]\$/s", $str))
+
+                    return true;
+
+                break;
+
+            case'b':
+
+            case'i':
+
+            case'd':
+
+                if (preg_match("/^{$badions[1]}:[0-9.E-]+;\$/", $str))
+
+                    return true;
+
+                break;
+
+        }
+
+        return false;
+    }
+}
+
 /**
  * todo:文件锁
  * @param Closure $func

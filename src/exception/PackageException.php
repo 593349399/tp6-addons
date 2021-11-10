@@ -9,15 +9,15 @@ namespace GdPeter\Tp6Addons\exception;
 
 
 use think\Exception;
+use think\facade\Log;
 
 class PackageException extends Exception
 {
-
     public function __construct($msg,$data = [])
     {
         $this->message = $msg;
         if($data){
-            trace($data,'package');
+            Log::write($data,'package');
             $this->setData('package',$data);
         }
     }
