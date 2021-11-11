@@ -29,7 +29,7 @@ class Service extends BaseService
     // 默认配置
     protected $defaultConfig = [
         'cache_pre' => 'package:', //通用缓存前缀
-        'type' => [], //包数据
+        'path' => [], //包数据
         'provider' => [] //载入容器
     ];
 

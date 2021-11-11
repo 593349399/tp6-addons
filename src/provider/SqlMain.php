@@ -32,30 +32,19 @@ class SqlMain extends MainBase
 
     public function __construct()
     {
-        $dbs = Config::get('package.dbs',[]);
-        if($dbs){
-            $this->dbs = array_merge($this->dbs,$dbs);
-        }
+        $this->dbs = array_merge($this->dbs, (array) Config::get('package.dbs',[]));
         parent::__construct();
     }
 
-    /**
-     * 加载触发器
-     * @return mixed|void
-     * @throws \think\db\exception\DataNotFoundException
-     * @throws \think\db\exception\DbException
-     * @throws \think\db\exception\ModelNotFoundException
-     */
     protected function loadTriggers()
     {
         $dbData = $this->getQueryByTable('package_triggers')->select();
-
         $data = [];
         foreach ($dbData as $v){
             if(!isset($data[$v['name']])){
                 $data[$v['name']] = [];
             }
-            $data[$v['name']][] = [$v['class'],$v['handle'] ?: 'handle'];
+            $data[$v['name']][] = [$v['class'],$v['handle']];
         }
 
         if($data){
@@ -63,50 +52,76 @@ class SqlMain extends MainBase
         }
     }
 
-    /**
-     * 记载命令行
-     * @return mixed|void
-     * @throws \think\db\exception\DataNotFoundException
-     * @throws \think\db\exception\DbException
-     * @throws \think\db\exception\ModelNotFoundException
-     */
     protected function loadCommands()
     {
         $dbData = $this->getQueryByTable('package_commands')->select();
-
         $data = [];
         foreach ($dbData as $v){
             $data[$v['name']] = $v['class'];
         }
-
         if($data){
             $this->commands($data);
         }
     }
 
+    protected function refresh($key){
+        $oldPackage = $this->getQueryByTable('package',false)->where('identifie',$key)->find();
+        $package = $this->getPackageByPath($key); //获取本地包数据
+
+        if(!empty($oldPackage) || !empty($package)){
+            if(empty($oldPackage)){
+                //$package不为空
+                $packageId = $this->getQueryByTable('package')->save($this->getPackageData($package));
+                $commands = $this->analysisCommand($package,['package_id'=>$packageId]);
+                $listens = $this->analysisListen($package,['package_id'=>$packageId]);
+                $this->getQueryByTable('package_commands')->insertAll($commands);
+                $this->getQueryByTable('package_triggers')->insertAll($listens);
+            }else if(empty($package)){
+                //$oldPackage不为空
+                $this->getQueryByTable('package')->where('id',$oldPackage['id'])->save([
+                    'status'=>2
+                ]);
+                $this->getQueryByTable('package_commands')->where('package_id',$oldPackage['id'])->delete();
+                $this->getQueryByTable('package_triggers')->where('package_id',$oldPackage['id'])->delete();
+            }else{
+                //都不为空
+                $update = array_diff($this->getPackageData($package),$oldPackage);
+                //判断是否有字段更新了
+                if($update){
+                    $this->getQueryByTable('package')->where('id',$oldPackage['id'])->save($update);
+                    $this->getQueryByTable('package_commands',false)->where('package_id',$oldPackage['id'])->delete();
+                    $this->getQueryByTable('package_triggers',false)->where('package_id',$oldPackage['id'])->delete();
+                    $commands = $this->analysisCommand($package,['package_id'=>$oldPackage['id']]);
+                    $listens = $this->analysisListen($package,['package_id'=>$oldPackage['id']]);
+                    $this->getQueryByTable('package_commands')->insertAll($commands);
+                    $this->getQueryByTable('package_triggers')->insertAll($listens);
+                }
+            }
+        }
+    }
+
     /**
-     * 获取包信息
-     * @param null $identifie
-     * @return array|mixed
-     * @throws PackageException
-     * @throws \think\db\exception\DataNotFoundException
-     * @throws \think\db\exception\DbException
-     * @throws \think\db\exception\ModelNotFoundException
+     * 根据本地包获取package表数据
+     * @param $package
+     * @return array
      */
-//    protected function getPackage($identifie = null)
-//    {
-//        $dbData = $this->getQueryByTable('package')->select()->column(null,'identifie');
-//
-//        if($identifie){
-//            if(isset($dbData[$identifie])){
-//                return $dbData[$identifie];
-//            }
-//
-//            throw new PackageException("没有找到{$identifie}应用数据,请清除缓存后重试");
-//        }else{
-//            return $dbData;
-//        }
-//    }
+    private function getPackageData($package)
+    {
+        $res = [
+            'name'=>$package['package']['application']['name'],
+            'identifie'=>$package['package']['application']['identifie'],
+            'version'=>$package['package']['application']['version'],
+            'ability'=>$package['package']['application']['ability'] ?? '',
+            'type'=>$package['package']['application']['type'] ?? '',
+            'description'=>$package['package']['application']['description'] ?? '',
+            'author'=>$package['package']['application']['author'] ?? '',
+            'statuss'=>1,
+        ];
+        unset($package['package']['application']);
+        $res['package'] = serialize($package);
+
+        return $res;
+    }
 
     /**
      * 获取Sql句柄

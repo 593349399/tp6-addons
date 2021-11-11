@@ -2,7 +2,7 @@
 
 return [
     //包配置
-    'type'=>[
+    'path'=>[
         'system'=>[
             'dep'=>0,
             'path'=>app()->getRootPath()
