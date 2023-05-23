@@ -22,7 +22,7 @@ class SendConfig extends Command
     public function execute(Input $input, Output $output)
     {
         //获取默认配置文件
-        $content = file_get_contents(root_path() . 'vendor/gd_peter/tp6-addons/src/config.php');
+        $content = file_get_contents(root_path() . 'vendor/gdpeter/tp6-addons/src/config.php');
 
         $configPath = config_path() . '/';
         $configFile = $configPath . 'package.php';

@@ -1,5 +1,5 @@
 {
-    "name": "gd_peter/tp6-addons",
+    "name": "gdpeter/tp6-addons",
     "type": "library",
     "require": {
         "php": ">= 7.1.0",
