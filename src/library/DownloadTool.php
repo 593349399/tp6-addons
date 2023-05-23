@@ -70,7 +70,7 @@ class DownloadTool
         $responseHeader = get_headers($this->siteUrl, 1);
 
         if (!$responseHeader) {
-            throw new PackageException('获取远程文件信息失败!');
+            throw new PackageException('获取远程文件信息失败!',$responseHeader);
 
         }
 

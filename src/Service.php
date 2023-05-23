@@ -31,8 +31,8 @@ class Service extends BaseService
     protected $defaultConfig = [
         'debug' => false,
         'type' => [],
-        'config_pre' => 'Tp6Addons:',
-        'sql_from_pre' => 'tp6_',
+        'cache_pre' => 'Tp6Addons:', //缓存前缀
+        'sql_from_pre' => 'tp6_', //数据库替换前缀
         'sql_burst' => false, //数据库执行分段
     ];
 
@@ -167,7 +167,7 @@ class Service extends BaseService
 
     private function getCacheName($name)
     {
-        return Config::get('package.config_pre') . $name;
+        return Config::get('package.cache_pre') . $name;
     }
 
     private function isDebug()

@@ -16,12 +16,8 @@ return [
             'path'=> root_path() . 'public/home/'
         ]
     ],
-    'config_pre' => env('redis.prefix', ''),
-
+    'cache_pre' => env('redis.prefix', ''),
     'debug'=>env('app.debug', false),
-
-    //执行sql替换使用的前缀
     'sql_from_pre'=>'ynk_',
-
-    'sql_burst'=>false, //数据库执行分段
+    'sql_burst'=>false,
 ];
