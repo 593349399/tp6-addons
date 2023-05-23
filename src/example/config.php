@@ -6,6 +6,14 @@ return [
         'system'=>[
             'dep'=>0,
             'path'=> root_path()
+        ],
+        'addons'=>[
+            'dep'=>1,
+            'path'=> root_path() . 'app/'
+        ],
+        'channel'=>[
+            'dep'=>1,
+            'path'=> root_path() . 'public/home/'
         ]
     ],
     'cache_pre' => env('redis.prefix', ''),
