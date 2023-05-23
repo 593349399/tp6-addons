@@ -5,12 +5,12 @@
  * Time: 9:11
  */
 
-namespace GdPeter\Tp6Addons\provider;
+namespace Gdpeter\Tp6Addons\provider;
 
-use GdPeter\Tp6Addons\exception\PackageException;
-use GdPeter\Tp6Addons\exception\PackageSqlBurstException;
-use GdPeter\Tp6Addons\exception\UpdateException;
-use GdPeter\Tp6Addons\library\DownloadTool;
+use Gdpeter\Tp6Addons\exception\PackageException;
+use Gdpeter\Tp6Addons\exception\PackageSqlBurstException;
+use Gdpeter\Tp6Addons\exception\UpdateException;
+use Gdpeter\Tp6Addons\library\DownloadTool;
 use myttyy\Directory;
 use myttyy\File;
 use think\App;
@@ -20,7 +20,7 @@ use think\facade\Event;
 /**
  * 包安装脚本管理
  * Class Package
- * @package GdPeter\Tp6Addons
+ * @package Gdpeter\Tp6Addons
  */
 class Update
 {

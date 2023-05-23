@@ -5,7 +5,7 @@
  * Time: 9:15
  */
 
-namespace GdPeter\Tp6Addons\library;
+namespace Gdpeter\Tp6Addons\library;
 
 class DownloadTool
 {

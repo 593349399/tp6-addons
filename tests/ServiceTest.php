@@ -5,9 +5,9 @@
  * Time: 11:50
  */
 
-namespace GdPeter\test;
+namespace Gdpeter\test;
 
-use GdPeter\Tp6Addons\Service;
+use Gdpeter\Tp6Addons\Service;
 use Mockery as m;
 use myttyy\FilesFinder;
 use PHPUnit\Framework\TestCase;

@@ -5,7 +5,7 @@
  * Time: 18:18
  */
 
-namespace GdPeter\Tp6Addons\exception;
+namespace Gdpeter\Tp6Addons\exception;
 
 
 use think\Exception;

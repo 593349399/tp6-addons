@@ -6,14 +6,14 @@
  */
 declare(strict_types=1);
 
-namespace GdPeter\Tp6Addons;
+namespace Gdpeter\Tp6Addons;
 
 use think\App;
 
 /**
  * 插件基类
  * Class Addons
- * @package GdPeter\Tp6Addons
+ * @package Gdpeter\Tp6Addons
  */
 abstract class Addons
 {

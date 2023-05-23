@@ -5,7 +5,7 @@
  * Time: 11:39
  */
 
-namespace GdPeter\Tp6Addons\command;
+namespace Gdpeter\Tp6Addons\command;
 
 use think\console\Command;
 use think\console\Input;

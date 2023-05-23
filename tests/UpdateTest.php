@@ -4,7 +4,7 @@
  * Date：2021/8/20
  * Time: 10:34
  */
-namespace GdPeter\test;
+namespace Gdpeter\test;
 
 use PHPUnit\Framework\TestCase;
 

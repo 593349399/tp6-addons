@@ -13,7 +13,7 @@
     },
     "autoload": {
         "psr-4": {
-            "GdPeter\\Tp6Addons\\": "src/"
+            "Gdpeter\\Tp6Addons\\": "src/"
         },
         "files": [
             "src/helper.php"
@@ -22,7 +22,7 @@
     "autoload-dev": {
         "psr-4": {
             "app\\": "app",
-            "GdPeter\\test\\": "tests/"
+            "Gdpeter\\test\\": "tests/"
         }
     },
     "authors": [
@@ -34,7 +34,7 @@
     "extra": {
         "think":{
             "services":[
-                "GdPeter\\Tp6Addons\\Service"
+                "Gdpeter\\Tp6Addons\\Service"
             ],
             "config":{
                 "package": "src/config.php"

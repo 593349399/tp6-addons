@@ -6,11 +6,11 @@
  */
 declare (strict_types=1);
 
-namespace GdPeter\Tp6Addons;
+namespace Gdpeter\Tp6Addons;
 
-use GdPeter\Tp6Addons\command\SendConfig;
-use GdPeter\Tp6Addons\exception\PackageException;
-use GdPeter\Tp6Addons\provider\Update;
+use Gdpeter\Tp6Addons\command\SendConfig;
+use Gdpeter\Tp6Addons\exception\PackageException;
+use Gdpeter\Tp6Addons\provider\Update;
 use myttyy\FilesFinder;
 
 use think\App;
@@ -23,7 +23,7 @@ use think\Service as BaseService;
 /**
  * 包服务
  * Class Service
- * @package GdPeter\Tp6Addons
+ * @package Gdpeter\Tp6Addons
  */
 class Service extends BaseService
 {
