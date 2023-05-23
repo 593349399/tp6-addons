@@ -5,20 +5,15 @@
  * Time: 11:22
  */
 
-namespace Gdpeter\Tp6Addons\exception;
-
+namespace Gdpeter\Tp6Addons;
 
 use think\Exception;
 
 class PackageException extends Exception
 {
-
     public function __construct($msg,$data = [])
     {
         $this->message = $msg;
-        if($data){
-            trace($data,'package');
-            $this->setData('package',$data);
-        }
+        !empty($data) && $this->setData('package',$data);
     }
 }

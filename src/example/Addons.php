@@ -6,7 +6,7 @@
  */
 declare(strict_types=1);
 
-namespace Gdpeter\Tp6Addons;
+namespace Gdpeter\Tp6Addons\example;
 
 use think\App;
 

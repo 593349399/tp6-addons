@@ -32,13 +32,8 @@ class Service extends BaseService
         'debug' => false,
         'type' => [],
         'config_pre' => 'Tp6Addons:',
-        'provider' => [
-        ]
-    ];
-
-    //注入服务
-    protected $defaultProvider = [
-        'update'=>Update::class,
+        'sql_from_pre' => 'tp6_',
+        'sql_burst' => false, //数据库执行分段
     ];
 
     public function __construct(App $app)
@@ -51,7 +46,6 @@ class Service extends BaseService
     {
         //初始化包配置
         $config = array_merge($this->defaultConfig,Config::get('package'));
-        $config['provider'] = array_merge($this->defaultProvider,$config['provider']);
         Config::set($config,'package');
     }
 
@@ -62,20 +56,10 @@ class Service extends BaseService
 
     public function boot()
     {
-        $provider = Config::get('package.provider',[]);
-        foreach ($provider as $k => $v){
-            if(!is_object($v) && !class_exists($v)){
-                throw new ClassNotFoundException($v . '类不存在',$v);
-            }
-            $this->app->bind('package:'.$k,$v);
-            if(method_exists($v,'init')){
-                $v::init();
-            }
-        }
         $this->loadEvent();
         $this->loadCommand();
         $this->commands([
-            'package:config' => SendConfig::class, //配置
+            'package:config' => SendConfig::class, //配置推送命令
         ]);
     }
 
@@ -91,21 +75,22 @@ class Service extends BaseService
                 $package = FilesFinder::maxDepth($v['dep'])->select(["package.xml"],$v['path'])->toArray();
                 foreach ($package as $p){
                     $content = read_xml($p['path']);
-                    if($content && !empty($content['application']['identifie']) && !empty($content['application']['version'])){
-                        $idx = $content['application']['identifie'];
-                        $cache[$idx] = [
-                            'identifie'=>$idx,
-                            'version'=>$content['application']['version'],
-                            'path'=>$p['path'],
-                            'rootPath'=>$p['dirname'],
-                            'package'=>$content,
-                        ];
-                    }else{
-                        trace('非法包：'.$v['path'],'package');
+                    if($content){
+                        try {
+                            $idx = $content['application']['identifie'];
+                            $cache[$idx] = [
+                                'identifie'=>$idx,
+                                'version'=>$content['application']['version'],
+                                'path'=>$p['path'],
+                                'rootPath'=>$p['dirname'],
+                                'package'=>$content,
+                            ];
+                        }catch (\Throwable $e){
+                            continue;
+                        }
                     }
                 }
             }
-
             Cache::set($cacheName,$cache);
         }
 
@@ -188,17 +173,5 @@ class Service extends BaseService
     private function isDebug()
     {
         return Config::get('package.debug');
-    }
-
-    //获取容器实例
-    public function get(string $name = '', array $args = [], bool $newInstance = false)
-    {
-        $provider = Config::get('package.provider',[]);
-
-        if(isset($provider[$name])){
-            return $this->app->make('package:'.$name, $args, $newInstance);
-        }
-
-        throw new PackageException('没有找到容器'.$name);
     }
 }

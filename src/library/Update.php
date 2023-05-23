@@ -5,11 +5,9 @@
  * Time: 9:11
  */
 
-namespace Gdpeter\Tp6Addons\provider;
+namespace Gdpeter\Tp6Addons\library;
 
-use Gdpeter\Tp6Addons\exception\PackageException;
-use Gdpeter\Tp6Addons\exception\PackageSqlBurstException;
-use Gdpeter\Tp6Addons\exception\UpdateException;
+use Gdpeter\Tp6Addons\PackageException;
 use Gdpeter\Tp6Addons\library\DownloadTool;
 use myttyy\Directory;
 use myttyy\File;
@@ -26,13 +24,14 @@ class Update
 {
     private $app;
     private $package;
-
-    private $sqlBurst = false; //数据库分段执行
+    private $sqlBurst;
 
     public function __construct(App $app)
     {
         $this->app = $app;
         $this->package = $this->app->get('package');
+        $this->sqlBurst = Config::get('package.sql_burst',false);
+        $this->sqlFromPre = Config::get('package.sql_from_pre','');
     }
 
     //设置数据库分段执行条数
@@ -42,25 +41,60 @@ class Update
         return $this;
     }
 
-    public function getSqlBurst()
+    //设置数据库分段执行条数
+    public function setSqlFromPre($sqlFromPre)
     {
-        return $this->sqlBurst;
+        $this->sqlFromPre = $sqlFromPre;
+        return $this;
     }
 
-    //执行指定版本包安装更新卸载操作
-    public function run($identifie,$version,$action)
+    /**
+     * 执行指定包版本的安装
+     * @param $identifie
+     * @param $version
+     * @return void
+     */
+    public function install($identifie,$version)
     {
-        //1.基本验证
-        if(!in_array($action,['install','upgrade','uninstall'])){
-            throw new PackageException('包安装命令action参数错误');
-        }
+        $this->run($identifie,$version,'install');
+    }
+
+    /**
+     * 执行指定包版本的更新
+     * @param $identifie
+     * @param $version
+     * @return void
+     */
+    public function upgrade($identifie,$version)
+    {
+        $this->run($identifie,$version,'upgrade');
+    }
+
+    /**
+     * 执行指定包版本的卸载
+     * @param $identifie
+     * @param $version
+     * @return void
+     */
+    public function uninstall($identifie,$version)
+    {
+        $this->run($identifie,$version,'uninstall');
+    }
+
+    private function run($identifie,$version,$action)
+    {
+        $exception = compact('identifie','version','action');
+
         $package = $this->package->getPackage($identifie);
         if(!$package){
-            throw new PackageException('安装包配置错误或不存在',compact('identifie','version','action'));
+            throw new PackageException('安装包配置错误或不存在',$exception);
         }
+
         if($package['version'] != $version){
-            throw new PackageException('更新版本和本地版本不一致，清除缓存后重试',$package);
+            $exception['package'] = $package;
+            throw new PackageException('更新版本和本地版本不一致，清除缓存后重试',$exception);
         }
+
         //不限制内存
         ini_set('memory_limit','51200M');
         //不限制时间
@@ -77,7 +111,7 @@ class Update
         }
 
         //执行成功埋点
-        Event::trigger('AfterPackageRun',compact('package','action'));
+        Event::trigger('after_package_run',compact('package','action'));
 
         $allfile = array_merge($file['install'],$file['upgrade'],$file['uninstall']);
 
@@ -140,7 +174,7 @@ class Update
         Directory::create($runtimePath);
 
         // 被替换的前缀
-        $from = Config::get('package.database_from_pre');
+        $from = Config::get('package.sql_from_pre');
         // 要替换的前缀
         $to = Config::get('database.connections.mysql.prefix');
 

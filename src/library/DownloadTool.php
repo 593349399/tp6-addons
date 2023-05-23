@@ -7,6 +7,8 @@
 
 namespace Gdpeter\Tp6Addons\library;
 
+use Gdpeter\Tp6Addons\exception\PackageException;
+
 class DownloadTool
 {
     /**
@@ -62,13 +64,13 @@ class DownloadTool
     private function getSiteFiLeInfo()
     {
         if (!$this->siteUrl) {
-            throw new \Exception('请先设置远程文件url!');
+            throw new PackageException('请先设置远程文件url!');
         }
 
         $responseHeader = get_headers($this->siteUrl, 1);
 
         if (!$responseHeader) {
-            throw new \Exception('获取远程文件信息失败!');
+            throw new PackageException('获取远程文件信息失败!');
 
         }
 
@@ -81,7 +83,7 @@ class DownloadTool
         }
 
         if(!empty($responseHeader[0]) && false == strpos($responseHeader[0],'200 OK')){
-            throw new \Exception('远程文件错误：'.$responseHeader[0]);
+            throw new PackageException('远程文件错误：'.$responseHeader[0]);
         }
 
         return $responseHeader;
@@ -116,13 +118,13 @@ class DownloadTool
         }
 
         if (!$fd) {
-            throw new \Exception('创建或打开本地文件失败!');
+            throw new PackageException('创建或打开本地文件失败!');
         }
 
 //加上文件锁,防止刷新抢占资源句柄
 
         if (!flock($fd, LOCK_EX | LOCK_NB)) {
-            throw new \Exception('已有相关进程操作执行下载本文件!');
+            throw new PackageException('已有相关进程操作执行下载本文件!');
 
         }
 
@@ -131,7 +133,7 @@ class DownloadTool
         $fileSize = filesize($fileName);
 
         if ($fileSize && $fileSize >= $siteFileLength) {
-            throw new \Exception('原文件已下载完成,请勿重复下载!');
+            throw new PackageException('原文件已下载完成,请勿重复下载!');
 
         }
 
@@ -166,12 +168,12 @@ class DownloadTool
             $code = $result['code'] ?? 0;
 
             if (!$code) {
-                throw new \Exception('Http请求异常!');
+                throw new PackageException('Http请求异常!');
 
             }
 
             if ($code != 206) {
-                throw new \Exception('Http状态码异常,可能不支持断点的资源或已完成下载!');
+                throw new PackageException('Http状态码异常,可能不支持断点的资源或已完成下载!');
 
             }
 
@@ -188,14 +190,14 @@ class DownloadTool
                 $saveRes = fwrite($fd, $streamContent);
 
                 if (!$saveRes) {
-                    throw new \Exception('写入流到文件失败!');
+                    throw new PackageException('写入流到文件失败!');
 
                 }
 
                 if ($saveRes != $streamLength) {
 //讲道理这种情况基本不会遇到,除非分段数设置过大,暂时未做兼容处理,重新执行就行
 
-                    throw new \Exception('数据异常:返回大小和写入大小不一致!');
+                    throw new PackageException('数据异常:返回大小和写入大小不一致!');
 
                 }
 
@@ -259,7 +261,7 @@ class DownloadTool
         $response = curl_exec($ch);
 
         if (curl_errno($ch)) {
-            throw new \Exception('下载文件异常:' . curl_error($ch));
+            throw new PackageException('下载文件异常:' . curl_error($ch));
 
         }
 
@@ -270,7 +272,7 @@ class DownloadTool
         $httpHeader = substr($response, 0, $headSize);
 
         if (!$httpHeader) {
-            throw new \Exception('下载文件异常:未获取到响应头');
+            throw new PackageException('下载文件异常:未获取到响应头');
 
         }
 

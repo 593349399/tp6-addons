@@ -5,24 +5,23 @@ return [
     'type'=>[
         'system'=>[
             'dep'=>0,
-            'path'=>app()->getRootPath()
+            'path'=> root_path()
         ],
         'addons'=>[
             'dep'=>1,
-            'path'=>app()->getRootPath() . 'app/'
+            'path'=> root_path() . 'app/'
         ],
         'channel'=>[
             'dep'=>1,
-            'path'=>app()->getRootPath() . 'public/home/'
+            'path'=> root_path() . 'public/home/'
         ]
     ],
-    'debug'=>false,
+    'config_pre' => env('redis.prefix', ''),
+
+    'debug'=>env('app.debug', false),
 
     //执行sql替换使用的前缀
-    'database_from_pre'=>'jz_',
+    'sql_from_pre'=>'ynk_',
 
-    //载入的容器
-    'provider'=>[
-    ]
-
+    'sql_burst'=>false, //数据库执行分段
 ];
