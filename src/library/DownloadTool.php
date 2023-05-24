@@ -1,13 +1,12 @@
 <?php
 /**
  * user: peter
- * Date：2021/6/28
- * Time: 9:15
+ * datetime：2023-05-24 15:43:29
  */
 
 namespace Gdpeter\Tp6Addons\library;
 
-use Gdpeter\Tp6Addons\exception\PackageException;
+use Gdpeter\Tp6Addons\PackageException;
 
 class DownloadTool
 {
@@ -32,10 +31,8 @@ class DownloadTool
      */
 
     public function setUrl($url)
-
     {
         $this->siteUrl = $url;
-
         return $this;
 
     }
@@ -45,14 +42,10 @@ class DownloadTool
      * @param int $byte 字节大小
      * @return $this
      */
-
     public function setBurst($byte)
-
     {
         $this->burstBytes = $byte;
-
         return $this;
-
     }
 
     /**
@@ -118,13 +111,12 @@ class DownloadTool
         }
 
         if (!$fd) {
-            throw new PackageException('创建或打开本地文件失败!');
+            throw new PackageException(1000);
         }
 
 //加上文件锁,防止刷新抢占资源句柄
-
         if (!flock($fd, LOCK_EX | LOCK_NB)) {
-            throw new PackageException('已有相关进程操作执行下载本文件!');
+            throw new PackageException(1001);
 
         }
 
@@ -133,7 +125,7 @@ class DownloadTool
         $fileSize = filesize($fileName);
 
         if ($fileSize && $fileSize >= $siteFileLength) {
-            throw new PackageException('原文件已下载完成,请勿重复下载!');
+            throw new PackageException(1002);
 
         }
 
@@ -169,12 +161,10 @@ class DownloadTool
 
             if (!$code) {
                 throw new PackageException('Http请求异常!');
-
             }
 
             if ($code != 206) {
                 throw new PackageException('Http状态码异常,可能不支持断点的资源或已完成下载!');
-
             }
 
 //返回流长度
@@ -191,7 +181,6 @@ class DownloadTool
 
                 if (!$saveRes) {
                     throw new PackageException('写入流到文件失败!');
-
                 }
 
                 if ($saveRes != $streamLength) {

@@ -1,8 +1,7 @@
 <?php
 /**
  * user: peter
- * Date：2021/8/10
- * Time: 11:57
+ * datetime：2023-05-24 15:43:29
  */
 
 use think\facade\Config;

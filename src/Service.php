@@ -1,15 +1,15 @@
 <?php
 /**
  * user: peter
- * Date：2021/8/7
- * Time: 14:00
+ * datetime：2023-05-24 15:43:29
  */
 declare (strict_types=1);
 
 namespace Gdpeter\Tp6Addons;
 
+use Gdpeter\Tp6Addons\command\BuildVersion;
 use Gdpeter\Tp6Addons\command\SendConfig;
-use Gdpeter\Tp6Addons\exception\PackageException;
+use Gdpeter\Tp6Addons\PackageException;
 use Gdpeter\Tp6Addons\provider\Update;
 use myttyy\FilesFinder;
 
@@ -30,6 +30,7 @@ class Service extends BaseService
 {
     // 默认配置
     protected $defaultConfig = [
+        'burst'=>4048*1024, //分包下载
         'debug' => false,
         'type' => [],
         'cache_pre' => 'Tp6Addons:', //缓存前缀
@@ -61,8 +62,25 @@ class Service extends BaseService
         $this->loadEvent();
         $this->loadCommand();
         $this->commands([
-            'package:config' => SendConfig::class, //配置推送命令
+            'package:config' => SendConfig::class,
+            'package:build' => BuildVersion::class,
         ]);
+    }
+
+    public function readXml($file)
+    {
+        $content = read_xml($file);
+        if($content){
+            return [
+                'name'=>$content['application']['name'],
+                'type'=>$content['application']['type'],
+                'identifie'=>$content['application']['identifie'],
+                'version'=>$content['application']['version'],
+                'package'=>$content,
+            ];
+        }else{
+            throw new PackageException('安装包配置文件错误',$file);
+        }
     }
 
     //获取本地包已安装列表数据
@@ -76,21 +94,14 @@ class Service extends BaseService
             foreach ($type as $v){
                 $package = FilesFinder::maxDepth($v['dep'])->select(["package.xml"],$v['path'])->toArray();
                 foreach ($package as $p){
-                    $content = read_xml($p['path']);
-                    if($content){
-                        try {
-                            $idx = $content['application']['identifie'];
-                            $cache[$idx] = [
-                                'identifie'=>$idx,
-                                'version'=>$content['application']['version'],
-                                'path'=>$p['path'],
-                                'rootPath'=>$p['dirname'],
-                                'package'=>$content,
-                            ];
-                        }catch (\Throwable $e){
-                            write_package_log(['msg'=>$e->getMessage(),'content'=>$content]);
-                            continue;
-                        }
+                    try {
+                        $content = $this->readXml($p['path']);
+                        $content['path'] = $p['path'];
+                        $content['rootPath'] = $p['dirname'];
+                        $cache[$content['identifie']] = $content;
+                    }catch (\Throwable $e){
+                        write_package_log(['msg'=>$e->getMessage(),'file'=>$p['path']]);
+                        continue;
                     }
                 }
             }

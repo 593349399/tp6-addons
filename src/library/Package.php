@@ -1,14 +1,13 @@
 <?php
 /**
  * user: peter
- * Date：2021/8/11
- * Time: 9:11
+ * datetime：2023-05-24 15:43:29
  */
-
 namespace Gdpeter\Tp6Addons\library;
 
-use Gdpeter\Tp6Addons\PackageException;
 use Gdpeter\Tp6Addons\library\DownloadTool;
+use Gdpeter\Tp6Addons\PackageException;
+use Gdpeter\Tp6Addons\Service;
 use myttyy\Directory;
 use myttyy\File;
 use think\App;
@@ -20,21 +19,34 @@ use think\facade\Event;
  * Class Package
  * @package Gdpeter\Tp6Addons
  */
-class Update
+class Package
 {
+    /**
+     * @var App
+     */
     private $app;
+
+    /**
+     * @var Service
+     */
     private $package;
+
     private $sqlBurst;
     private $sqlFromPre;
     private $sqlToPre;
+    private $burst;
+    private $runtimePath;
 
     public function __construct(App $app)
     {
         $this->app = $app;
         $this->package = $this->app->get('package');
+
+        $this->burst = Config::get('package.burst',4048*1024);
         $this->sqlBurst = Config::get('package.sql_burst',false); //暂不支持
         $this->sqlFromPre = Config::get('package.sql_from_pre',false);
         $this->sqlToPre = Config::get('database.connections.mysql.prefix');
+        $this->runtimePath = runtime_path() . 'package/';
     }
 
     //设置数据库分段执行条数
@@ -101,16 +113,16 @@ class Update
      */
     private function run($identifie,$version,$action)
     {
-        $exception = compact('identifie','version','action');
+        $logData = compact('identifie','version','action');
 
         $package = $this->package->getPackage($identifie);
         if(!$package){
-            throw new PackageException('安装包配置错误或不存在',$exception);
+            throw new PackageException('安装包配置错误或不存在',$logData);
         }
 
         if($package['version'] != $version){
-            $exception['package'] = $package;
-            throw new PackageException('更新版本和本地版本不一致，清除缓存后重试',$exception);
+            $logData['package'] = $package;
+            throw new PackageException('更新版本和本地版本不一致，清除缓存后重试',$logData);
         }
 
         //不限制内存
@@ -226,64 +238,83 @@ class Update
         }
     }
 
-    /**
-     * 整包下载并执行安装或更新，支持断点续传、文件完整校验、分包下载、备份还原
-     * @param $identifie
-     * @param $url
-     * @param false $md5
-     * @param float|int $burst
-     */
-    public function installFullPackage($identifie,$version,$url,$md5 = false,$burst = 4048*1024)
+    public function encryFile($file)
     {
-        //读取本地是否有此安装包
+        return md5_file($file);
+    }
+
+    public function checkFile($file,$md5)
+    {
+        return md5_file($zipFile) == $md5;
+    }
+
+    /**
+     * 下载安装包
+     * @param $identifie
+     * @param $version
+     * @param $url
+     * @param $md5
+     * @return void
+     */
+    public function downloadPackage($identifie,$version,$url,$md5)
+    {
+        $zipRuntimePath = $this->runtimePath . 'zip/'; //zip包下载根目录
+        Directory::create($zipRuntimePath);
+        $zipFile = $zipRuntimePath . $identifie . '_' . $version . '.zip'; //zip名称
+
+        //下载文件
+        app(DownloadTool::class)->setUrl($url)->setBurst($this->burst)->saveFile($zipFile);
+    }
+
+    //todo:检查安装包大小比例，返回安装包安装进度，可用于制作下载进度条
+    public function checkPackage($identifie,$version,$url,$md5){}
+
+    /**
+     * 安装包
+     * @param $identifie
+     * @param $version
+     * @param $md5
+     * @return void
+     */
+    public function installPackage($identifie,$version,$md5)
+    {
+        //读取安装包
         $package = $this->package->getPackage($identifie);
 
-        //错误日志记录数据
-        $log = compact('identifie','version','url','md5','burst','package');
-
-        //有本地包表示更新请求
+        //本地有版本，判断版本是否一致
         if($package && $package['version'] == $version){
-            throw new PackageException('已经更新至'.$version.'版本，请勿重复操作！',$log);
+            throw new PackageException($package['name'] . '已经更新至'.$version.'版本，请勿重复操作！');
         }
 
-        $zipRuntimePath = $this->app->getRuntimePath() . 'package_zip/'; //zip包根目录
-        $unzipRuntimePath = $this->app->getRuntimePath() . "package_unzip/{$identifie}/"; //解压根目录
-        $bfRuntimePath = $this->app->getRuntimePath() . "package_bf/{$identifie}/"; //备份zip包根目录
-        Directory::create($zipRuntimePath); //创建目录
-        Directory::create($unzipRuntimePath); //创建目录
-        Directory::create($bfRuntimePath); //创建目录
-
-
-        $zipFile = $zipRuntimePath . $identifie . '.zip'; //临时安装zip名称
-        //没有文件或者有文件需要校验
-        if(!is_file($zipFile) || ($md5 && md5_file($zipFile) != $md5)){
-            //下载文件
-            (new DownloadTool())->setUrl($url)->setBurst($burst)->saveFile($zipFile);
+        $zipFile = $this->runtimePath . 'zip/' . $identifie . '_' . $version . '.zip'; //zip包名称
+        if(!file_exists($zipFile)){
+            throw new PackageException(1003); //安装包不存在，需要重新下载
         }
+
+        if(!$this->checkFile($zipFile,$md5)){
+            File::delFile($zipFile); //删除zip包
+            throw new PackageException(1004); //安装包已过期，需要重新下载
+        }
+
+        $unzipRuntimePath = $this->runtimePath . "unzip/{$identifie}_{$version}/"; //解压根目录
+        Directory::create($unzipRuntimePath);
 
         try {
-            if($md5 && md5_file($zipFile) != $md5){
-                throw new PackageException("安装包下载不完整请重试",$log);
-            }
-
+            //执行解压
             if(!$this->unzip($zipFile,$unzipRuntimePath)){
-                throw new PackageException("安装包解压失败请重试",$log);
+                throw new PackageException("安装包解压失败请重试！");
+            }
+            //读取安装包的配置
+            $xml = $this->package->readXml($unzipRuntimePath . 'package.xml');
+            if($xml['identifie'] != $identifie){
+                throw new PackageException("安装包错误请重试！");
+            }
+            if($xml['version'] != $version){
+                throw new PackageException("安装包版本错误请重试！");
             }
 
-            //读取包xml
-            $xml = read_xml($unzipRuntimePath . 'package.xml');
-            if($xml && !empty($xml['application']['identifie']) && !empty($xml['application']['version'])){
-                if($xml['application']['identifie'] != $identifie){
-                    throw new PackageException("远程包identifie配置错误",$log);
-                }
-                if($xml['application']['version'] != $version){
-                    throw new PackageException("远程包version配置错误",$log);
-                }
-            }else{
-                throw new PackageException("远程包配置错误,不存在identifie和version",$log);
-            }
         }catch (\Throwable $e){
-            File::delFile($zipFile); //删除zip包重新下载
+            File::delFile($zipFile); //删除zip包
             Directory::del($unzipRuntimePath); //删除解压目录数据
             throw $e;
         }
@@ -295,24 +326,21 @@ class Update
         }else{
             $action = 'install';
             $type = Config::get('package.type');
-            if(empty($xml['application']['type']) || !isset($type[$xml['application']['type']])){
-                throw new PackageException("远程包type或本地package.type配置错误",$log);
-            }
-            if($type[$xml['application']['type']]['dep'] == 0){
-                $movePath = $type[$xml['application']['type']]['path'];
+            if($type[$xml['type']]['dep'] == 0){
+                $movePath = $type[$xml['type']]['path'];
             }else{
-                $movePath = $type[$xml['application']['type']]['path'] . "{$identifie}/";
+                $movePath = $type[$xml['type']]['path'] . "{$identifie}/";
             }
         }
 
-        //todo:备份原文件
-
-        Directory::copy($unzipRuntimePath,$movePath);
+        //最终执行更新操作
+        Directory::copy($unzipRuntimePath,$movePath); //复制文件
         File::delFile($zipFile); //删除zip包
         Directory::del($unzipRuntimePath); //删除解压目录数据
         $this->package->deleteCache(); //清楚缓存执行安装请求
         $this->run($identifie,$version,$action); //执行安装请求
     }
+
 
     // zip包解压
     private function unzip($filePath,$fileTo)

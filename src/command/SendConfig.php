@@ -1,8 +1,7 @@
 <?php
 /**
  * user: peter
- * Date：2021/8/10
- * Time: 11:39
+ * datetime：2023-05-24 15:43:29
  */
 
 namespace Gdpeter\Tp6Addons\command;
