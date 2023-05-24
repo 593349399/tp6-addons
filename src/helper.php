@@ -5,6 +5,9 @@
  * Time: 11:57
  */
 
+use think\facade\Config;
+use think\facade\Log;
+
 if(!function_exists('read_file')){
 /**
  * 读取文件内容
@@ -49,6 +52,13 @@ function read_xml($filename)
     }
 }
 
+}
+
+if(!function_exists('write_package_log')){
+    function write_package_log($log)
+    {
+        Log::write($log,Config::get('package.error_log'));
+    }
 }
 
 /**

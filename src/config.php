@@ -10,6 +10,5 @@ return [
     ],
     'cache_pre' => env('redis.prefix', ''),
     'debug'=>env('app.debug', false),
-    'sql_from_pre'=>'ynk_',
-    'sql_burst'=>false,
+    'sql_from_pre'=>false,
 ];

@@ -25,13 +25,16 @@ class Update
     private $app;
     private $package;
     private $sqlBurst;
+    private $sqlFromPre;
+    private $sqlToPre;
 
     public function __construct(App $app)
     {
         $this->app = $app;
         $this->package = $this->app->get('package');
-        $this->sqlBurst = Config::get('package.sql_burst',false);
-        $this->sqlFromPre = Config::get('package.sql_from_pre','');
+        $this->sqlBurst = Config::get('package.sql_burst',false); //暂不支持
+        $this->sqlFromPre = Config::get('package.sql_from_pre',false);
+        $this->sqlToPre = Config::get('database.connections.mysql.prefix');
     }
 
     //设置数据库分段执行条数
@@ -45,6 +48,13 @@ class Update
     public function setSqlFromPre($sqlFromPre)
     {
         $this->sqlFromPre = $sqlFromPre;
+        return $this;
+    }
+
+    //设置数据库分段执行条数
+    public function setSqlToPre($sqlToPre)
+    {
+        $this->sqlToPre = $sqlToPre;
         return $this;
     }
 
@@ -81,6 +91,14 @@ class Update
         $this->run($identifie,$version,'uninstall');
     }
 
+    /**
+     * 执行操作
+     * @param $identifie
+     * @param $version
+     * @param $action
+     * @return void
+     * @throws PackageException
+     */
     private function run($identifie,$version,$action)
     {
         $exception = compact('identifie','version','action');
@@ -100,63 +118,35 @@ class Update
         //不限制时间
         set_time_limit(0);
 
-        $file['install'] = !empty($package['package']['install']) ? (is_array($package['package']['install']) ? $package['package']['install'] : [$package['package']['install']]) : [];
-        $file['upgrade'] = !empty($package['package']['upgrade']) ? (is_array($package['package']['upgrade']) ? $package['package']['upgrade'] : [$package['package']['upgrade']]) : [];
-        $file['uninstall'] = !empty($package['package']['uninstall']) ? (is_array($package['package']['uninstall']) ? $package['package']['uninstall'] : [$package['package']['uninstall']]) : [];
+        $actions = !empty($package['package'][$action]) ? (is_array($package['package'][$action]) ? $package['package'][$action] : [$package['package'][$action]]) : [];
 
-        $dofile = $file[$action] ?: [];
-
-        foreach ($dofile as $v){
-            $this->parseSql($v,$package['rootPath']);
-        }
-
-        //执行成功埋点
-        Event::trigger('after_package_run',compact('package','action'));
-
-        $allfile = array_merge($file['install'],$file['upgrade'],$file['uninstall']);
-
-        //删除文件
-        foreach ($allfile as $v){
-            File::delFile($package['rootPath'] . $v);
-        }
-    }
-
-    /**
-     * 根據str操作，加載php文件/执行sql文件/執行sql语句
-     * @param $str
-     * @param string $pre 前缀
-     * @throws PackageSqlBurstException
-     */
-    public function parseSql($str,$pre = '')
-    {
-        if($str){
-            $preStr = $pre . $str;
-            if(is_file($preStr)){
+        //循环判断$item类型
+        foreach ($actions as $item){
+            $actionPath = $package['rootPath'] . $item;
+            if(is_file($actionPath)){
                 //加载文件
-                if(false !== strpos($preStr,'.sql')){
-                    $this->readSql($preStr);
+                if(false !== strpos($actionPath,'.sql')){
+                    $this->readSql($actionPath);
                 }else{
-                    require_once $preStr;
+                    require_once $actionPath;
                 }
-            }else{
-                $this->runSql($str);
             }
         }
     }
 
     /**
      * 从sql文件获取纯sql语句
-     * @param  string $sql_file sql文件路径
+     * @param  string $sqlFile sql文件路径
      * @return mixed
      */
-    public function readSql($sql_file = '')
+    public function readSql($sqlFile = '')
     {
-        if (!file_exists($sql_file)) {
+        if (!file_exists($sqlFile)) {
             return false;
         }
 
         // 读取sql文件内容
-        $handle = read_file($sql_file);
+        $handle = read_file($sqlFile);
 
         // 執行sql语句
         $handle = $this->runSql($handle);
@@ -170,131 +160,74 @@ class Update
      */
     public function runSql($content = '')
     {
-        $runtimePath = app()->getRuntimePath() . "install_sql_tmp/";
-        Directory::create($runtimePath);
-
-        // 被替换的前缀
-        $from = Config::get('package.sql_from_pre');
-        // 要替换的前缀
-        $to = Config::get('database.connections.mysql.prefix');
-
         if ($content != '') {
-            $md5 = md5($content);
-            $sql_file = $runtimePath . $md5 . ".json";
-            $log_file = $runtimePath . $md5 . ".log";
-            if($pure_sql = read_file($sql_file)){
-                $pure_sql = json_decode($pure_sql,true);
-            }else{
-                // 纯sql内容
-                $pure_sql = [];
-
-                // 多行注释标记
-                $comment = false;
-
-                // 按行分割，兼容多个平台
-                $content = str_replace(["\r\n", "\r"], "\n", $content);
-                $content = explode("\n", trim($content));
-
-                // 循环处理每一行
-                foreach ($content as $key => $line) {
-                    // 跳过空行
-                    if ($line == '') {
-                        continue;
-                    }
-
-                    // 跳过以#或者--开头的单行注释
-                    if (preg_match("/^(#|--)/", $line)) {
-                        continue;
-                    }
-
-                    // 跳过以/**/包裹起来的单行注释
-                    if (preg_match("/^\/\*(.*?)\*\//", $line)) {
-                        continue;
-                    }
-
-                    // 多行注释开始
-                    if (substr($line, 0, 2) == '/*') {
-                        $comment = true;
-                        continue;
-                    }
-
-                    // 多行注释结束
-                    if (substr($line, -2) == '*/') {
-                        $comment = false;
-                        continue;
-                    }
-
-                    // 多行注释没有结束，继续跳过
-                    if ($comment) {
-                        continue;
-                    }
-
-                    // 替换表前缀
-                    if ($from != '') {
-                        $line = str_replace('`' . $from, '`' . $to, $line);
-                    }
-
-                    // 替换INSERT INTO
-                    $line = str_ireplace('INSERT INTO ', 'INSERT IGNORE INTO ', $line);
-
-                    // sql语句
-                    array_push($pure_sql, $line);
+            // 纯sql内容
+            $pure_sql = [];
+            // 多行注释标记
+            $comment = false;
+            // 按行分割，兼容多个平台
+            $content = str_replace(["\r\n", "\r"], "\n", $content);
+            $content = explode("\n", trim($content));
+            // 循环处理每一行
+            foreach ($content as $key => $line) {
+                // 跳过空行
+                if ($line == '') {
+                    continue;
                 }
-
-                // 以数组形式返回sql语句
-                $pure_sql = implode("\n", $pure_sql);
-                $pure_sql = explode(";\n", $pure_sql);
-
-                file_put_contents($sql_file,json_encode($pure_sql,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+                // 跳过以#或者--开头的单行注释
+                if (preg_match("/^(#|--)/", $line)) {
+                    continue;
+                }
+                // 跳过以/**/包裹起来的单行注释
+                if (preg_match("/^\/\*(.*?)\*\//", $line)) {
+                    continue;
+                }
+                // 多行注释开始
+                if (substr($line, 0, 2) == '/*') {
+                    $comment = true;
+                    continue;
+                }
+                // 多行注释结束
+                if (substr($line, -2) == '*/') {
+                    $comment = false;
+                    continue;
+                }
+                // 多行注释没有结束，继续跳过
+                if ($comment) {
+                    continue;
+                }
+                // 替换表前缀
+                if ($this->sqlFromPre) {
+                    $line = str_replace('`' . $this->sqlFromPre, '`' . $this->sqlToPre, $line);
+                }
+                // 替换INSERT INTO
+                $line = str_ireplace('INSERT INTO ', 'INSERT IGNORE INTO ', $line);
+                // sql语句
+                array_push($pure_sql, $line);
             }
 
-            $nextNeedBurst = false; //下一次是否需要分段
-            if($this->sqlBurst){ //1000
-                $count = count($pure_sql);
-                if($this->sqlBurst < $count){
-                    //分段执行小于总数的时候需要分段
-                    if(is_file($log_file)){
-                        //分段记录：记录结束的下标值作为本次的开始
-                        $sqlBurstStart = read_file($log_file);
-                    }else{
-                        //没有分段记录从第一条开始读
-                        $sqlBurstStart = 0;
-                    }
-                    $sqlBurstEnd = $sqlBurstStart + $this->sqlBurst; //分段结束位置
-                    $nextNeedBurst = ($sqlBurstEnd < $count); //下一次是否需要分段
-                    $pure_sql = array_slice($pure_sql,$sqlBurstStart,$this->sqlBurst); //修改sql数据
-                }
-            }
+            // 以数组形式返回sql语句
+            $pure_sql = implode("\n", $pure_sql);
+            $pure_sql = explode(";\n", $pure_sql);
 
             foreach ($pure_sql as $key => $value){
-                $errorNum = 3; //失败重试次数
+                $errorNum = 2; //失败重试次数
                 while ($errorNum--){
                     try {
                         \think\facade\Db::execute($value);
                         continue 2; //成功跳出当前循环
                     } catch (\Throwable $e) {
                         if(!$errorNum){
-                            trace(['msg'=>$e->getMessage(),'error_sql'=>$value],'package');
+                            write_package_log(['msg'=>$e->getMessage(),'error_sql'=>$value]);
                         }
                     }
                 }
-            }
-
-            if($nextNeedBurst){
-                //下次需要分段
-                file_put_contents($log_file,$sqlBurstEnd); //分段开始
-                $scale = floor($sqlBurstEnd/$count * 100); //执行百分比
-                throw new PackageSqlBurstException('sql执行分段',$scale); //分段异常
-            }else{
-                //执行成功删除两个记录文件
-                @unlink($log_file);
-                @unlink($sql_file);
             }
         }
     }
 
     /**
-     * 整包安装或更新操作，支持断点续传，支持文件完整校验，支持分包下载，支持备份还原
+     * 整包下载并执行安装或更新，支持断点续传、文件完整校验、分包下载、备份还原
      * @param $identifie
      * @param $url
      * @param false $md5
@@ -373,7 +306,6 @@ class Update
         }
 
         //todo:备份原文件
-        
 
         Directory::copy($unzipRuntimePath,$movePath);
         File::delFile($zipFile); //删除zip包

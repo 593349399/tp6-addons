@@ -18,6 +18,7 @@ use think\exception\ClassNotFoundException;
 use think\facade\Cache;
 use think\facade\Config;
 use think\facade\Event;
+use think\facade\Log;
 use think\Service as BaseService;
 
 /**
@@ -34,6 +35,7 @@ class Service extends BaseService
         'cache_pre' => 'Tp6Addons:', //缓存前缀
         'sql_from_pre' => 'tp6_', //数据库替换前缀
         'sql_burst' => false, //数据库执行分段
+        'error_log' => 'package', //错误日志名称
     ];
 
     public function __construct(App $app)
@@ -86,6 +88,7 @@ class Service extends BaseService
                                 'package'=>$content,
                             ];
                         }catch (\Throwable $e){
+                            write_package_log(['msg'=>$e->getMessage(),'content'=>$content]);
                             continue;
                         }
                     }
