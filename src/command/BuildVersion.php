@@ -6,6 +6,7 @@
 
 namespace Gdpeter\Tp6Addons\command;
 
+use myttyy\Directory;
 use think\console\Command;
 use think\console\Input;
 use think\console\input\Argument;
@@ -30,22 +31,19 @@ class BuildVersion extends Command
     {
         $diff_version = $input->getArgument('diff_version');
         $build_version = $input->getArgument('build_version');
-        $diff_version_name = 'origin ' . $diff_version;
-        $build_version_name = 'origin ' . $build_version;
-        $build_file = "package_build/{$build_version}.zip";
+        $build_path = root_path() . "package_build/";
+        $build_file = $build_path . "{$build_version}.zip";
+        Directory::create($build_path);
 
         $this->gitExec("git config --global core.quotepath false"); //git对比文件名称中文乱码
         $this->gitExec("git config --global diff.renamelimit 999999"); //git对比文件数量限制
         $this->gitExec("git config --global core.autocrlf false"); //Git中采取哪种对待换行符的方式,文本文件保持其原来的样子
 
         $this->gitExec("git remote update origin --prune"); //更新远程分支信息
-        $this->gitExec("git fetch {$diff_version_name}"); //更新远程分支信息
-        $this->gitExec("git fetch {$build_version_name}"); //更新远程分支信息
-        $diff_list = $this->gitExec("git diff {$build_version_name} {$diff_version_name} --name-only --diff-filter=ACMR");
-        dump($diff_list);exit;
-        $this->gitExec("git archive HEAD -o {$build_file} ({$diff_list})");
-//        $output->writeln('create package success');
-//        git remote update origin --prune
+        $this->gitExec("git fetch origin {$diff_version}"); //更新远程分支信息
+        $this->gitExec("git fetch origin {$build_version}"); //更新远程分支信息
+        $this->gitExec("git archive origin/{$build_version} -o {$build_file} $(git diff origin/{$diff_version} origin/{$build_version} --name-only --diff-filter=ACMR)");
+        $output->writeln('create package success');
     }
 
     //执行命令

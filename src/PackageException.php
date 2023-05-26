@@ -16,7 +16,7 @@ class PackageException extends Exception
         1001=>'已有相关进程操作执行下载本文件!',
         1002=>'原文件已下载完成,请勿重复下载!',
         1003=>'安装包不存在，请先现在安装包!',
-        1004=>'安装包不存在，请先现在安装包!',
+        1004=>'安装包验证错误，请重新安装!',
     ];
 
     public function __construct($code = 1,$data=null)
