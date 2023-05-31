@@ -11,6 +11,7 @@ use Gdpeter\Tp6Addons\command\BuildVersion;
 use Gdpeter\Tp6Addons\command\SendConfig;
 use Gdpeter\Tp6Addons\PackageException;
 use Gdpeter\Tp6Addons\provider\Update;
+use myttyy\Directory;
 use myttyy\FilesFinder;
 
 use think\App;
@@ -30,13 +31,13 @@ class Service extends BaseService
 {
     // 默认配置
     protected $defaultConfig = [
-        'burst'=>4048*1024, //分包下载
-        'debug' => false,
+        'debug' => false, //debug模式不记录缓存
+        'burst'=>4048*1024, //升级下载分包大小
         'type' => [],
-        'cache_pre' => 'Tp6Addons:', //缓存前缀
+        'cache_pre' => 'package:', //缓存前缀
         'sql_from_pre' => 'tp6_', //数据库替换前缀
         'sql_burst' => false, //数据库执行分段
-        'error_log' => 'package', //错误日志名称
+        'runtime' => '' ,  //默认安装路径 root_path() . 'runtime/package/'
     ];
 
     public function __construct(App $app)
@@ -47,9 +48,14 @@ class Service extends BaseService
 
     private function initialize()
     {
+        $this->defaultConfig['runtime'] = root_path() . 'runtime/package/';
+
         //初始化包配置
         $config = array_merge($this->defaultConfig,Config::get('package'));
         Config::set($config,'package');
+
+        //初始化安装包目录
+        Directory::create($config['runtime']);
     }
 
     public function register()
@@ -100,7 +106,7 @@ class Service extends BaseService
                         $content['rootPath'] = $p['dirname'];
                         $cache[$content['identifie']] = $content;
                     }catch (\Throwable $e){
-                        write_package_log(['msg'=>$e->getMessage(),'file'=>$p['path']]);
+                        Log::error(['msg'=>$e->getMessage(),'file'=>$p['path']]); //实时写入
                         continue;
                     }
                 }
@@ -108,7 +114,15 @@ class Service extends BaseService
             Cache::set($cacheName,$cache);
         }
 
-        return $key == '*' ? $cache : ($cache[$key] ?? false);
+        if($key == '*'){
+            return $cache;
+        }else{
+            if(isset($cache[$key])){
+                return $cache[$key];
+            }else{
+                throw new PackageException(2000);
+            }
+        }
     }
 
     //清除缓存

@@ -90,16 +90,13 @@ class DownloadTool
      */
 
     public function saveFile($fileName)
-
     {
 //获取远程文件的信息
-
         $siteFileInfo = $this->getSiteFiLeInfo();
 
         $siteFileLength = $siteFileInfo['Content-Length'] ?? 0;
 
 //根据文件是否存在创建文件句柄、计算断点下载开始字节
-
         $fd = null;
 
         if (file_exists($fileName)) {
@@ -111,52 +108,40 @@ class DownloadTool
         }
 
         if (!$fd) {
+            throw new PackageException('创建或打开本地文件失败！');
+        }
+
+        //加上文件锁,防止刷新抢占资源句柄
+        if (!flock($fd, LOCK_EX | LOCK_NB)) {
             throw new PackageException(1000);
         }
 
-//加上文件锁,防止刷新抢占资源句柄
-        if (!flock($fd, LOCK_EX | LOCK_NB)) {
-            throw new PackageException(1001);
-
-        }
-
-//检查文件是否已经下载完成
-
+        //检查文件是否已经下载完成
         $fileSize = filesize($fileName);
-
         if ($fileSize && $fileSize >= $siteFileLength) {
-            throw new PackageException(1002);
-
+            return; //下载完成
         }
 
-//计算断点下载结束字节
-
+        //计算断点下载结束字节
         $sByte = $fileSize;
-
         $eByte = $sByte + $this->burstBytes;
 
-//循环下载文件
-
+        //循环下载文件
         while (true) {
-//文件下载完成
+        //文件下载完成
 
             if ($fileSize >= $siteFileLength) {
                 fclose($fd);
 
                 break;
-
             }
 
 //传递分片范围
 
             $xRange = "{$sByte}-$eByte";
-
 //请求curl
-
             $result = $this->curl($xRange);
-
 //检查是否正常请求
-
             $code = $result['code'] ?? 0;
 
             if (!$code) {
@@ -166,11 +151,8 @@ class DownloadTool
             if ($code != 206) {
                 throw new PackageException('Http状态码异常,可能不支持断点的资源或已完成下载!');
             }
-
 //返回流长度
-
             $streamLength = $result['length'] ?? 0;
-
 //返回流内容
 
             $streamContent = $result['stream'] ?? '';
@@ -185,21 +167,14 @@ class DownloadTool
 
                 if ($saveRes != $streamLength) {
 //讲道理这种情况基本不会遇到,除非分段数设置过大,暂时未做兼容处理,重新执行就行
-
                     throw new PackageException('数据异常:返回大小和写入大小不一致!');
-
                 }
 
 //递增range
-
                 $sByte = $eByte + 1;
-
                 $eByte = $sByte + $this->burstBytes;
-
 //记录文件大小
-
                 $fileSize = $fileSize + $saveRes;
-
             }
 
         }

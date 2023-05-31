@@ -31,10 +31,10 @@ class Package
      */
     private $package;
 
+    private $burst;
     private $sqlBurst;
     private $sqlFromPre;
     private $sqlToPre;
-    private $burst;
     private $runtimePath;
 
     public function __construct(App $app)
@@ -42,11 +42,11 @@ class Package
         $this->app = $app;
         $this->package = $this->app->get('package');
 
-        $this->burst = Config::get('package.burst',4048*1024);
-        $this->sqlBurst = Config::get('package.sql_burst',false); //暂不支持
-        $this->sqlFromPre = Config::get('package.sql_from_pre',false);
+        $this->burst = Config::get('package.burst');
+        $this->sqlBurst = Config::get('package.sql_burst');
+        $this->sqlFromPre = Config::get('package.sql_from_pre');
         $this->sqlToPre = Config::get('database.connections.mysql.prefix');
-        $this->runtimePath = runtime_path() . 'package/';
+        $this->runtimePath =  Config::get('package.runtime');
     }
 
     //设置数据库分段执行条数
@@ -116,9 +116,6 @@ class Package
         $logData = compact('identifie','version','action');
 
         $package = $this->package->getPackage($identifie);
-        if(!$package){
-            throw new PackageException('安装包配置错误或不存在',$logData);
-        }
 
         if($package['version'] != $version){
             $logData['package'] = $package;
@@ -230,7 +227,7 @@ class Package
                         continue 2; //成功跳出当前循环
                     } catch (\Throwable $e) {
                         if(!$errorNum){
-                            write_package_log(['msg'=>$e->getMessage(),'error_sql'=>$value]);
+                            write_package_install_log("SQL执行错误：{$e->getMessage()}；SQL：{$value}");
                         }
                     }
                 }
@@ -238,107 +235,97 @@ class Package
         }
     }
 
-    public function encryFile($file)
-    {
-        return md5_file($file);
-    }
-
-    public function checkFile($file,$md5)
-    {
-        return md5_file($zipFile) == $md5;
-    }
-
     /**
-     * 下载安装包
+     * 一键安装
      * @param $identifie
      * @param $version
      * @param $url
      * @param $md5
-     * @return void
+     * @return bool 成功/失败
+     * @throws PackageException
      */
-    public function downloadPackage($identifie,$version,$url,$md5)
+    public function installPackage($identifie,$version,$url,$md5)
     {
-        $zipRuntimePath = $this->runtimePath . 'zip/'; //zip包下载根目录
-        Directory::create($zipRuntimePath);
-        $zipFile = $zipRuntimePath . $identifie . '_' . $version . '.zip'; //zip名称
-
-        //下载文件
-        app(DownloadTool::class)->setUrl($url)->setBurst($this->burst)->saveFile($zipFile);
-    }
-
-    //todo:检查安装包大小比例，返回安装包安装进度，可用于制作下载进度条
-    public function checkPackage($identifie,$version,$url,$md5){}
-
-    /**
-     * 安装包
-     * @param $identifie
-     * @param $version
-     * @param $md5
-     * @return void
-     */
-    public function installPackage($identifie,$version,$md5)
-    {
-        //读取安装包
-        $package = $this->package->getPackage($identifie);
-
-        //本地有版本，判断版本是否一致
-        if($package && $package['version'] == $version){
-            throw new PackageException($package['name'] . '已经更新至'.$version.'版本，请勿重复操作！');
-        }
-
-        $zipFile = $this->runtimePath . 'zip/' . $identifie . '_' . $version . '.zip'; //zip包名称
-        if(!file_exists($zipFile)){
-            throw new PackageException(1003); //安装包不存在，需要重新下载
-        }
-
-        if(!$this->checkFile($zipFile,$md5)){
-            File::delFile($zipFile); //删除zip包
-            throw new PackageException(1004); //安装包已过期，需要重新下载
-        }
-
-        $unzipRuntimePath = $this->runtimePath . "unzip/{$identifie}_{$version}/"; //解压根目录
-        Directory::create($unzipRuntimePath);
-
-        try {
-            //执行解压
-            if(!$this->unzip($zipFile,$unzipRuntimePath)){
-                throw new PackageException("安装包解压失败请重试！");
+        //防并发文件锁，保证多进程只有一个可以进入更新环节，
+        return executeOnceWithFileLock(function () use ($identifie,$version,$url,$md5){
+            $package = $this->package->getPackage($identifie);
+            if($package['version'] == $version){
+                throw new PackageException(1001); //该版本已升级成功
             }
-            //读取安装包的配置
-            $xml = $this->package->readXml($unzipRuntimePath . 'package.xml');
-            if($xml['identifie'] != $identifie){
-                throw new PackageException("安装包错误请重试！");
-            }
-            if($xml['version'] != $version){
-                throw new PackageException("安装包版本错误请重试！");
+            write_package_install_log("准备升级版本：{$version}");
+
+            $zipRuntimePath = $this->runtimePath . 'zip/';//zip下载目录
+            $unzipRuntimePath = $this->runtimePath . "unzip/{$identifie}_{$version}/"; //解压根目录
+            Directory::create($zipRuntimePath);
+            Directory::create($unzipRuntimePath);
+            $zipFile = $zipRuntimePath . $identifie . '_' . $version . '.zip'; //zip文件
+
+            //执行下载
+            write_package_install_log("正在下载安装包：{$url}");
+            try {
+                app(DownloadTool::class)->setUrl($url)->setBurst($this->burst)->saveFile($zipFile);
+            }catch (\Throwable $e){
+                write_package_install_log("下载安装包错误：{$e->getMessage()}");
+                File::delFile($zipFile); //删除zip包
+                throw $e;
             }
 
-        }catch (\Throwable $e){
-            File::delFile($zipFile); //删除zip包
-            Directory::del($unzipRuntimePath); //删除解压目录数据
-            throw $e;
-        }
+            write_package_install_log("正在进行安装包MD5验证...");
+            $md5File = md5_file($zipFile);
+            if($md5File != $md5){
+                write_package_install_log("安装包MD5验证失败：{$md5File}；{$md5}");
+                File::delFile($zipFile); //删除zip包
+                throw new PackageException(1002); //安装包验证错误，需要重新下载
+            }
 
-        //所有都没错，执行替换文件
-        if($package){
-            $action = 'upgrade';
-            $movePath = $package['rootPath'];
-        }else{
-            $action = 'install';
-            $type = Config::get('package.type');
-            if($type[$xml['type']]['dep'] == 0){
-                $movePath = $type[$xml['type']]['path'];
+            write_package_install_log("正在解压安装包...");
+            try {
+                //执行解压
+                if(!$this->unzip($zipFile,$unzipRuntimePath)){
+                    throw new PackageException("解压失败请重试！");
+                }
+                //读取安装包的配置
+                $xml = $this->package->readXml($unzipRuntimePath . 'package.xml');
+                if($xml['identifie'] != $identifie){
+                    throw new PackageException("安装包identifie错误，请联系开发者！");
+                }
+                if($xml['version'] != $version){
+                    throw new PackageException("安装包version错误，请联系开发者！");
+                }
+            }catch (\Throwable $e){
+                write_package_install_log("安装包解压失败：{$e->getMessage()}");
+                File::delFile($zipFile); //删除zip包
+                removeDir($unzipRuntimePath); //删除解压目录数据
+                throw $e;
+            }
+
+            //执行更新
+            if($package){
+                $action = 'upgrade';
+                $movePath = $package['rootPath'];
             }else{
-                $movePath = $type[$xml['type']]['path'] . "{$identifie}/";
+                $action = 'install';
+                $type = Config::get('package.type');
+                if($type[$xml['type']]['dep'] == 0){
+                    $movePath = $type[$xml['type']]['path'];
+                }else{
+                    $movePath = $type[$xml['type']]['path'] . "{$identifie}/";
+                }
             }
-        }
 
-        //最终执行更新操作
-        Directory::copy($unzipRuntimePath,$movePath); //复制文件
-        File::delFile($zipFile); //删除zip包
-        Directory::del($unzipRuntimePath); //删除解压目录数据
-        $this->package->deleteCache(); //清楚缓存执行安装请求
-        $this->run($identifie,$version,$action); //执行安装请求
+            write_package_install_log('正在安装...');
+            Directory::copy($unzipRuntimePath,$movePath); //复制文件
+            File::delFile($zipFile); //删除zip包
+            removeDir($unzipRuntimePath); //删除解压目录数据
+            $this->package->deleteCache(); //清楚缓存执行安装请求
+            try {
+                $this->run($identifie,$version,$action); //执行安装请求
+            }catch (\Throwable $e){
+                write_package_install_log("安装错误警告：{$e->getMessage()}");
+            }
+
+            write_package_install_log("{$version}安装成功！");
+        },$this->runtimePath . 'install');
     }
 
     // zip包解压
@@ -353,5 +340,10 @@ class Package
         } else {
             return false;
         }
+    }
+
+    public function checkIsInstall()
+    {
+        return file_exists(Config::get('package.runtime') . 'install');
     }
 }
