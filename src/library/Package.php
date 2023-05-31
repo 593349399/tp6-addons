@@ -221,13 +221,14 @@ class Package
 
             foreach ($pure_sql as $key => $value){
                 $errorNum = 2; //失败重试次数
+                write_package_install_log("SQL执行第{$key}条：{$value}");
                 while ($errorNum--){
                     try {
                         \think\facade\Db::execute($value);
                         continue 2; //成功跳出当前循环
                     } catch (\Throwable $e) {
                         if(!$errorNum){
-                            write_package_install_log("SQL执行错误：{$e->getMessage()}；SQL：{$value}");
+                            write_package_install_log("SQL执行第{$key}条错误：{$e->getMessage()}；SQL：{$value}");
                         }
                     }
                 }
