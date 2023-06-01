@@ -132,7 +132,8 @@ class Package
         //循环判断$item类型
         foreach ($actions as $item){
             $actionPath = $package['rootPath'] . $item;
-            if(is_file($actionPath)){
+            if(file_exists($actionPath)){
+                write_package_install_log("正在执行：{$item}文件");
                 //加载文件
                 if(false !== strpos($actionPath,'.sql')){
                     $this->readSql($actionPath);
@@ -221,7 +222,6 @@ class Package
 
             foreach ($pure_sql as $key => $value){
                 $errorNum = 2; //失败重试次数
-                write_package_install_log("SQL执行第{$key}条：{$value}");
                 while ($errorNum--){
                     try {
                         \think\facade\Db::execute($value);
@@ -251,7 +251,7 @@ class Package
         return executeOnceWithFileLock(function () use ($identifie,$version,$url,$md5){
             $package = $this->package->getPackage($identifie);
             if($package['version'] == $version){
-                throw new PackageException(1001); //该版本已升级成功
+                throw new PackageException(1000); //该版本已升级成功
             }
             write_package_install_log("准备升级版本：{$version}");
 
@@ -264,6 +264,7 @@ class Package
             //执行下载
             write_package_install_log("正在下载安装包：{$url}");
             try {
+                //外层有文件锁，就不会触发里面的文件锁了
                 app(DownloadTool::class)->setUrl($url)->setBurst($this->burst)->saveFile($zipFile);
             }catch (\Throwable $e){
                 write_package_install_log("下载安装包错误：{$e->getMessage()}");
@@ -276,7 +277,7 @@ class Package
             if($md5File != $md5){
                 write_package_install_log("安装包MD5验证失败：{$md5File}；{$md5}");
                 File::delFile($zipFile); //删除zip包
-                throw new PackageException(1002); //安装包验证错误，需要重新下载
+                throw new PackageException('安装包MD5验证失败，请重新安装!'); //安装包验证错误，需要重新下载
             }
 
             write_package_install_log("正在解压安装包...");

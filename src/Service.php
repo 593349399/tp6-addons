@@ -103,7 +103,7 @@ class Service extends BaseService
                     try {
                         $content = $this->readXml($p['path']);
                         $content['path'] = $p['path'];
-                        $content['rootPath'] = $p['dirname'];
+                        $content['rootPath'] = $p['dirname'] . '/';
                         $cache[$content['identifie']] = $content;
                     }catch (\Throwable $e){
                         Log::error(['msg'=>$e->getMessage(),'file'=>$p['path']]); //实时写入

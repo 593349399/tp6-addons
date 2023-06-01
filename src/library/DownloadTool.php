@@ -113,7 +113,7 @@ class DownloadTool
 
         //加上文件锁,防止刷新抢占资源句柄
         if (!flock($fd, LOCK_EX | LOCK_NB)) {
-            throw new PackageException(1000);
+            throw new PackageException('已有相关进程操作执行下载本文件!');
         }
 
         //检查文件是否已经下载完成
