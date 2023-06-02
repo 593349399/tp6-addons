@@ -94,3 +94,7 @@ if($res){
 > app('package') 可以获取service服务，具体看代码Gdpeter\Tp6Addons\Service
 
 > app(Package::class) 可以获取安装服务，具体看代码Gdpeter\Tp6Addons\library\Package
+
+以下展示补丁生成，只需要执行`php think package:build 1.0.0 1.0.1`即可得到1.0.1版本的补丁了
+![img.png](img.png)
+![img_1.png](img_1.png)
