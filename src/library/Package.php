@@ -131,14 +131,16 @@ class Package
 
         //循环判断$item类型
         foreach ($actions as $item){
-            $actionPath = $package['rootPath'] . $item;
-            if(file_exists($actionPath)){
-                write_package_install_log("正在执行：{$item}文件");
-                //加载文件
-                if(false !== strpos($actionPath,'.sql')){
-                    $this->readSql($actionPath);
-                }else{
-                    require_once $actionPath;
+            if(!empty($item)){
+                $actionPath = $package['rootPath'] . $item;
+                if(file_exists($actionPath)){
+                    write_package_install_log("正在执行：{$item}文件");
+                    //加载文件
+                    if(false !== strpos($actionPath,'.sql')){
+                        $this->readSql($actionPath);
+                    }else{
+                        require_once $actionPath;
+                    }
                 }
             }
         }
